@@ -15,7 +15,7 @@ type ReaderFS interface {
 // WriterFS is the interface that groups the basic Read file system methods.
 type WriterFS interface {
 	// Create creates the provided path as a file ready for writing.
-	// If the file already exists the file will be trimmed.
+	// If the file already exists the file will be truncated.
 	Create(path string) (io.WriteCloser, error)
 
 	// Create creates the provided path as a file ready for writing
