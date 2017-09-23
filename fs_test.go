@@ -31,10 +31,6 @@ func testFS(t *testing.T, newfs fsBuilder) {
 		testTruncatingExistentPath(t, newfs)
 	})
 
-	t.Run("CloseTwice", func(t *testing.T) {
-		testCloseTwice(t, newfs)
-	})
-
 	t.Run("Remove", func(t *testing.T) {
 		testRemoveFile(t, newfs)
 	})
@@ -76,12 +72,19 @@ func testReadWrite(t *testing.T, newfs fsBuilder) {
 }
 
 func testReadWriteAll(t *testing.T, newfs fsBuilder) {
+	fs := newfs(t)
+	path := newtestpath()
+	expectedContents := []byte(path)
+
+	assertNoError(t, fs.WriteAll(path, expectedContents), "writing contents to path[%s]", path)
+
+	contents, err := fs.ReadAll(path)
+	assertNoError(t, err, "reading file[%s]", path)
+
+	assertEqualBytes(t, expectedContents, contents)
 }
 
 func testTruncatingExistentPath(t *testing.T, newfs fsBuilder) {
-}
-
-func testCloseTwice(t *testing.T, newfs fsBuilder) {
 }
 
 func testRemoveFile(t *testing.T, newfs fsBuilder) {
@@ -95,7 +98,7 @@ func testReadNonExistent(t *testing.T, newfs fsBuilder) {
 
 func newtestpath() string {
 	return fmt.Sprintf(
-		"gofs-%d-%d",
+		"/gofs/file-%d-%d",
 		time.Now().Unix(),
 		rand.Intn(99999999),
 	)

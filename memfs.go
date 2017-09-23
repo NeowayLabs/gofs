@@ -16,7 +16,7 @@ func (m *MemFS) Open(path string) (io.ReadCloser, error) {
 }
 
 func (m *MemFS) ReadAll(path string) ([]byte, error) {
-	return nil, nil
+	return m.fs[path].Bytes(), nil
 }
 
 func (m *MemFS) Create(path string) (io.WriteCloser, error) {
@@ -26,6 +26,9 @@ func (m *MemFS) Create(path string) (io.WriteCloser, error) {
 }
 
 func (m *MemFS) WriteAll(path string, contents []byte) error {
+	buf := &bytes.Buffer{}
+	io.Copy(buf, bytes.NewReader(contents))
+	m.fs[path] = buf
 	return nil
 }
 
