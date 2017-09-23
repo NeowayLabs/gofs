@@ -3,6 +3,7 @@ package gofs_test
 import (
 	"fmt"
 	"io"
+	"io/ioutil"
 	"math/rand"
 	"testing"
 	"time"
@@ -48,16 +49,26 @@ func testReadWrite(t *testing.T, newfs fsBuilder) {
 	path := newtestpath()
 	writer, err := fs.Create(path)
 
-	assertNoError(t, err, "error creating file[%s]", path)
+	assertNoError(t, err, "creating writer for file[%s]", path)
 	defer closeIO(t, writer)
 
 	expectedContents := []byte(path)
 	n, err := writer.Write(expectedContents)
-	assertNoError(t, err, "error writing file[%s]", path)
+	assertNoError(t, err, "writing file[%s]", path)
 
 	if n != len(expectedContents) {
 		t.Fatal("expected to write[%d], wrote just[%d]", n, len(expectedContents))
 	}
+
+	reader, err := fs.Open(path)
+
+	assertNoError(t, err, "creating reader for file[%s]", path)
+	defer closeIO(t, reader)
+
+	contents, err := ioutil.ReadAll(reader)
+	assertNoError(t, err, "reading file[%s]", path)
+
+	assertEqualBytes(t, expectedContents, contents)
 }
 
 func testReadWriteAll(t *testing.T, newfs fsBuilder) {
@@ -76,18 +87,6 @@ func testRemoveFileNonExistent(t *testing.T, newfs fsBuilder) {
 }
 
 func testReadNonExistent(t *testing.T, newfs fsBuilder) {
-}
-
-func assertNoError(t *testing.T, err error, args ...interface{}) {
-	t.Helper()
-
-	if err != nil {
-		errmsg := ""
-		if len(args) > 0 {
-			errmsg = fmt.Sprintf(args[0].(string), args[1:]...)
-		}
-		t.Fatalf("unexpected error[%s] %s", err, errmsg)
-	}
 }
 
 func newtestpath() string {
