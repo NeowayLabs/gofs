@@ -27,20 +27,20 @@ func testFS(t *testing.T, newfs fsBuilder) {
 		testReadWriteAll(t, newfs)
 	})
 
-	t.Run("TruncateExistentPath", func(t *testing.T) {
-		testTruncatingExistentPath(t, newfs)
+	t.Run("WriteAllTruncatesExistentPath", func(t *testing.T) {
+		testWriteAllTruncatesExistentPath(t, newfs)
 	})
 
 	t.Run("Remove", func(t *testing.T) {
 		testRemoveFile(t, newfs)
 	})
 
-	t.Run("RemoveNonExistent", func(t *testing.T) {
-		testRemoveFileNonExistent(t, newfs)
+	t.Run("RemoveNonExistentFile", func(t *testing.T) {
+		testRemoveNonExistentFile(t, newfs)
 	})
 
-	t.Run("ReadNonExistent", func(t *testing.T) {
-		testReadNonExistent(t, newfs)
+	t.Run("ReadNonExistentFile", func(t *testing.T) {
+		testReadNonExistentFile(t, newfs)
 	})
 }
 
@@ -84,16 +84,28 @@ func testReadWriteAll(t *testing.T, newfs fsBuilder) {
 	assertEqualBytes(t, expectedContents, contents)
 }
 
-func testTruncatingExistentPath(t *testing.T, newfs fsBuilder) {
+func testWriteAllTruncatesExistentPath(t *testing.T, newfs fsBuilder) {
+	fs := newfs(t)
+	path := newtestpath()
+	expectedContents := []byte(path)
+
+	incompleteData := expectedContents[0 : len(expectedContents)/2]
+	assertNoError(t, fs.WriteAll(path, incompleteData), "writing incomplete contents to path[%s]", path)
+	assertNoError(t, fs.WriteAll(path, expectedContents), "writing contents to path[%s]", path)
+
+	contents, err := fs.ReadAll(path)
+	assertNoError(t, err, "reading file[%s]", path)
+
+	assertEqualBytes(t, expectedContents, contents)
 }
 
 func testRemoveFile(t *testing.T, newfs fsBuilder) {
 }
 
-func testRemoveFileNonExistent(t *testing.T, newfs fsBuilder) {
+func testRemoveNonExistentFile(t *testing.T, newfs fsBuilder) {
 }
 
-func testReadNonExistent(t *testing.T, newfs fsBuilder) {
+func testReadNonExistentFile(t *testing.T, newfs fsBuilder) {
 }
 
 func newtestpath() string {
