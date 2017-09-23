@@ -11,7 +11,9 @@ import (
 	"github.com/NeowayLabs/gofs"
 )
 
-// TODO: test N writes/reads
+// TODO:
+// test N writes/reads
+// test concurrently accessing different files
 
 type fsBuilder func(t *testing.T) gofs.FS
 
@@ -100,6 +102,9 @@ func newtestpath() string {
 }
 
 func closeIO(t *testing.T, closer io.Closer) {
+	if closer == nil {
+		t.Fatal("unexpected nil closer")
+	}
 	err := closer.Close()
 	if err != nil {
 		t.Fatal(err)
