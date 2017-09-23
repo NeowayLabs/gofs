@@ -11,6 +11,8 @@ import (
 	"github.com/NeowayLabs/gofs"
 )
 
+// TODO: test N writes/reads
+
 type fsBuilder func(t *testing.T) gofs.FS
 
 func testFS(t *testing.T, newfs fsBuilder) {
