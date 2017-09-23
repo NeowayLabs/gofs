@@ -1,0 +1,18 @@
+os:
+  - linux
+
+language: go
+sudo: false
+
+go:
+  - tip
+  - 1.9
+install:
+  - go get ./...
+script:
+  - go test ./...
+after_success:
+  - bash <(curl -s https://codecov.io/bash)
+notifications:
+  email:
+    - tiago.katcipis@neoway.com.br

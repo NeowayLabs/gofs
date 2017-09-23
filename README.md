@@ -1,12 +1,11 @@
 # GoFS
 
-GoFS provides multiple implementations of a generic file
-system interface.  Don't get confused with a operational
-system file system, the generic interface is aimed at the
-Go runtime not an operational system file system.
-
 The name may be misleading, but it means a file system for
 the Go runtime, not a file system implemented in Go.
+
+GoFS provides multiple implementations of a generic file
+system interface that is aimed at the
+Go runtime not an operational system file system.
 
 ## Why
 
