@@ -2,6 +2,7 @@ package gofs
 
 import (
 	"bytes"
+	"fmt"
 	"io"
 	"io/ioutil"
 )
@@ -16,7 +17,11 @@ func (m *MemFS) Open(path string) (io.ReadCloser, error) {
 }
 
 func (m *MemFS) ReadAll(path string) ([]byte, error) {
-	return m.fs[path].Bytes(), nil
+	data, ok := m.fs[path]
+	if !ok {
+		return nil, fmt.Errorf("unable to find file[%s]", path)
+	}
+	return data.Bytes(), nil
 }
 
 func (m *MemFS) Create(path string) (io.WriteCloser, error) {
@@ -33,6 +38,7 @@ func (m *MemFS) WriteAll(path string, contents []byte) error {
 }
 
 func (m *MemFS) Remove(path string) error {
+	delete(m.fs, path)
 	return nil
 }
 

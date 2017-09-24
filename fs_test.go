@@ -31,8 +31,12 @@ func testFS(t *testing.T, newfs fsBuilder) {
 		testWriteAllTruncatesExistentPath(t, newfs)
 	})
 
-	t.Run("Remove", func(t *testing.T) {
+	t.Run("RemoveFile", func(t *testing.T) {
 		testRemoveFile(t, newfs)
+	})
+
+	t.Run("RemoveDir", func(t *testing.T) {
+		testRemoveDir(t, newfs)
 	})
 
 	t.Run("RemoveNonExistentFile", func(t *testing.T) {
@@ -99,7 +103,19 @@ func testWriteAllTruncatesExistentPath(t *testing.T, newfs fsBuilder) {
 	assertEqualBytes(t, expectedContents, contents)
 }
 
+func testRemoveDir(t *testing.T, newfs fsBuilder) {
+}
+
 func testRemoveFile(t *testing.T, newfs fsBuilder) {
+	fs := newfs(t)
+	path := newtestpath()
+	contents := []byte(path)
+
+	assertNoError(t, fs.WriteAll(path, contents), "writing contents to path[%s]", path)
+	assertNoError(t, fs.Remove(path))
+
+	_, err := fs.ReadAll(path)
+	assertError(t, err, "reading file[%s]", path)
 }
 
 func testRemoveNonExistentFile(t *testing.T, newfs fsBuilder) {
