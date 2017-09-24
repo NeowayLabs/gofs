@@ -41,6 +41,9 @@ func (m *MemFS) WriteAll(path string, contents []byte) error {
 }
 
 func (m *MemFS) Remove(path string) error {
+	if _, ok := m.fs[path]; !ok {
+		return fmt.Errorf("removing non existent pathr[%s]", path)
+	}
 	delete(m.fs, path)
 	return nil
 }

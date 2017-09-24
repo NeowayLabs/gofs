@@ -123,6 +123,9 @@ func testRemoveFile(t *testing.T, newfs fsBuilder) {
 }
 
 func testRemoveNonExistentFile(t *testing.T, newfs fsBuilder) {
+	fs := newfs(t)
+	path := newtestpath()
+	assertError(t, fs.Remove(path), "removing file[%s]", path)
 }
 
 func testOpenNonExistentFile(t *testing.T, newfs fsBuilder) {
