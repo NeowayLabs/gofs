@@ -108,6 +108,18 @@ func testWriteAllTruncatesExistentPath(t *testing.T, newfs fsBuilder) {
 }
 
 func testRemoveDir(t *testing.T, newfs fsBuilder) {
+	fs := newfs(t)
+	dir := newtestpath()
+	contents := []byte("echo")
+	file1 := dir + "/file1"
+	file2 := dir + "/file1"
+
+	assertNoError(t, fs.WriteAll(file1, contents), "writing contents to path[%s]", file1)
+	assertNoError(t, fs.WriteAll(file2, contents), "writing contents to path[%s]", file2)
+
+	assertNoError(t, fs.Remove(dir))
+	assertFileDontExist(t, fs, file1)
+	assertFileDontExist(t, fs, file2)
 }
 
 func testRemoveFile(t *testing.T, newfs fsBuilder) {
