@@ -12,16 +12,19 @@ type MemFS struct {
 }
 
 func (m *MemFS) Open(path string) (io.ReadCloser, error) {
-	contents := bytes.NewBuffer(m.fs[path].Bytes())
+	contents, err := m.getcontents(path)
+	if err != nil {
+		return nil, err
+	}
 	return ioutil.NopCloser(contents), nil
 }
 
 func (m *MemFS) ReadAll(path string) ([]byte, error) {
-	data, ok := m.fs[path]
-	if !ok {
-		return nil, fmt.Errorf("unable to find file[%s]", path)
+	contents, err := m.getcontents(path)
+	if err != nil {
+		return nil, err
 	}
-	return data.Bytes(), nil
+	return contents.Bytes(), nil
 }
 
 func (m *MemFS) Create(path string) (io.WriteCloser, error) {
@@ -46,6 +49,14 @@ func NewMemFS() *MemFS {
 	return &MemFS{
 		fs: map[string]*bytes.Buffer{},
 	}
+}
+
+func (m *MemFS) getcontents(path string) (*bytes.Buffer, error) {
+	contents, ok := m.fs[path]
+	if !ok {
+		return nil, fmt.Errorf("unable to find file[%s]", path)
+	}
+	return contents, nil
 }
 
 type writerNopCloser struct {

@@ -46,6 +46,10 @@ func testFS(t *testing.T, newfs fsBuilder) {
 	t.Run("ReadNonExistentFile", func(t *testing.T) {
 		testReadNonExistentFile(t, newfs)
 	})
+
+	t.Run("OpenNonExistentFile", func(t *testing.T) {
+		testOpenNonExistentFile(t, newfs)
+	})
 }
 
 func testReadWrite(t *testing.T, newfs fsBuilder) {
@@ -121,7 +125,18 @@ func testRemoveFile(t *testing.T, newfs fsBuilder) {
 func testRemoveNonExistentFile(t *testing.T, newfs fsBuilder) {
 }
 
+func testOpenNonExistentFile(t *testing.T, newfs fsBuilder) {
+	fs := newfs(t)
+	path := newtestpath()
+	_, err := fs.Open(path)
+	assertError(t, err, "opening file[%s]", path)
+}
+
 func testReadNonExistentFile(t *testing.T, newfs fsBuilder) {
+	fs := newfs(t)
+	path := newtestpath()
+	_, err := fs.ReadAll(path)
+	assertError(t, err, "reading file[%s]", path)
 }
 
 func newtestpath() string {
