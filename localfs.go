@@ -21,7 +21,7 @@ func (l *LocalFS) WriteAll(path string, contents []byte) error {
 	return nil
 }
 
-func (l *LocalFS) Relove(path string) error {
+func (l *LocalFS) Remove(path string) error {
 	return nil
 }
 
