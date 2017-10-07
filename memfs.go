@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
+	"strings"
 )
 
 type MemFS struct {
@@ -42,10 +43,21 @@ func (m *MemFS) WriteAll(path string, contents []byte) error {
 
 func (m *MemFS) Remove(path string) error {
 	if _, ok := m.fs[path]; !ok {
-		return fmt.Errorf("removing non existent path[%s]", path)
+		return m.removeDir(path)
 	}
 	delete(m.fs, path)
 	return nil
+}
+
+func (m *MemFS) removeDir(dir string) error {
+	err := fmt.Errorf("removing non existent path[%s]", dir)
+	for storedFile, _ := range m.fs {
+		if strings.HasPrefix(storedFile, dir) {
+			delete(m.fs, storedFile)
+			err = nil
+		}
+	}
+	return err
 }
 
 func NewMemFS() *MemFS {
