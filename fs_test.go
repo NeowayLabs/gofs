@@ -12,7 +12,8 @@ import (
 )
 
 // TODO:
-// test N writes/reads
+// test sequentially accessing same files
+// test concurrently accessing same files
 // test concurrently accessing different files
 
 type fsBuilder func(t *testing.T) gofs.FS
@@ -21,6 +22,10 @@ func testFS(t *testing.T, newfs fsBuilder) {
 
 	t.Run("ReadWrite", func(t *testing.T) {
 		testReadWrite(t, newfs)
+	})
+
+	t.Run("ReadSameFileMultipleTimes", func(t *testing.T) {
+		testReadSameFileMultipleTimes(t, newfs)
 	})
 
 	t.Run("ReadWriteAll", func(t *testing.T) {
@@ -50,6 +55,27 @@ func testFS(t *testing.T, newfs fsBuilder) {
 	t.Run("OpenNonExistentFile", func(t *testing.T) {
 		testOpenNonExistentFile(t, newfs)
 	})
+}
+
+func testReadSameFileMultipleTimes(t *testing.T, newfs fsBuilder) {
+	// Guarantee orthogonality between open streams
+	f := setupWithFile(t, newfs)
+
+	readers := []io.ReadCloser{
+		f.Open(t),
+		f.Open(t),
+		f.Open(t),
+		f.Open(t),
+		f.Open(t),
+		f.Open(t),
+	}
+
+	for _, reader := range readers {
+		readContents, err := ioutil.ReadAll(reader)
+		assertNoError(t, err)
+		assertEqualBytes(t, f.contents, readContents)
+		reader.Close()
+	}
 }
 
 func testReadWrite(t *testing.T, newfs fsBuilder) {
@@ -123,15 +149,13 @@ func testRemoveDir(t *testing.T, newfs fsBuilder) {
 }
 
 func testRemoveFile(t *testing.T, newfs fsBuilder) {
-	fs := newfs(t)
-	path := newtestpath()
-	contents := []byte(path)
+	f := setupWithFile(t, newfs)
 
-	assertNoError(t, fs.WriteAll(path, contents), "writing contents to path[%s]", path)
-	assertNoError(t, fs.Remove(path))
+	assertNoError(t, f.fs.WriteAll(f.path, f.contents), "writing contents to path[%s]", f.path)
+	assertNoError(t, f.fs.Remove(f.path))
 
-	_, err := fs.ReadAll(path)
-	assertError(t, err, "reading file[%s]", path)
+	_, err := f.fs.ReadAll(f.path)
+	assertError(t, err, "reading file[%s]", f.path)
 }
 
 func testRemoveNonExistentFile(t *testing.T, newfs fsBuilder) {
@@ -169,5 +193,31 @@ func closeIO(t *testing.T, closer io.Closer) {
 	err := closer.Close()
 	if err != nil {
 		t.Fatal(err)
+	}
+}
+
+type fixture struct {
+	fs       gofs.FS
+	path     string
+	contents []byte
+}
+
+func (f *fixture) Open(t *testing.T) io.ReadCloser {
+	r, err := f.fs.Open(f.path)
+	assertNoError(t, err)
+	return r
+}
+
+func setupWithFile(t *testing.T, newfs fsBuilder) fixture {
+	fs := newfs(t)
+	path := newtestpath()
+	contents := []byte(path)
+
+	assertNoError(t, fs.WriteAll(path, contents), "writing contents to path[%s]", path)
+
+	return fixture{
+		fs:       fs,
+		path:     path,
+		contents: contents,
 	}
 }
