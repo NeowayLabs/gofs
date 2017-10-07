@@ -28,6 +28,10 @@ func testFS(t *testing.T, newfs fsBuilder) {
 		testConcurrentReadWrite(t, newfs)
 	})
 
+	t.Run("ConcurrentReadWriteSameFile", func(t *testing.T) {
+		testConcurrentReadWriteSameFile(t, newfs)
+	})
+
 	t.Run("ReadWriteAll", func(t *testing.T) {
 		testReadWriteAll(t, newfs)
 	})
@@ -212,6 +216,38 @@ func testConcurrentReadWrite(t *testing.T, newfs fsBuilder) {
 			assertNoError(t, err)
 			if n != len(contents) {
 				t.Fatalf("expected to write[%i] wrote[%i]", len(contents), n)
+			}
+
+			testRead()
+			testReadAll()
+		}()
+	}
+
+	waiter.Wait()
+}
+
+func testConcurrentReadWriteSameFile(t *testing.T, newfs fsBuilder) {
+	f := setupWithFile(t, newfs)
+	concurrency := 50
+	waiter := sync.WaitGroup{}
+	waiter.Add(concurrency)
+
+	for i := 0; i < concurrency; i++ {
+		go func() {
+			defer waiter.Done()
+
+			testRead := func() {
+				reader := f.Open(t)
+				defer reader.Close()
+				readContents, err := ioutil.ReadAll(reader)
+				assertNoError(t, err)
+				assertEqualBytes(t, f.contents, readContents)
+			}
+
+			testReadAll := func() {
+				readContents, err := f.fs.ReadAll(f.path)
+				assertNoError(t, err)
+				assertEqualBytes(t, f.contents, readContents)
 			}
 
 			testRead()
