@@ -5,16 +5,12 @@ import (
 	"io"
 	"io/ioutil"
 	"math/rand"
+	"sync"
 	"testing"
 	"time"
 
 	"github.com/NeowayLabs/gofs"
 )
-
-// TODO:
-// test sequentially accessing same files
-// test concurrently accessing same files
-// test concurrently accessing different files
 
 type fsBuilder func(t *testing.T) gofs.FS
 
@@ -26,6 +22,10 @@ func testFS(t *testing.T, newfs fsBuilder) {
 
 	t.Run("ReadSameFileMultipleTimes", func(t *testing.T) {
 		testReadSameFileMultipleTimes(t, newfs)
+	})
+
+	t.Run("ConcurrentReadWrite", func(t *testing.T) {
+		testConcurrentReadWrite(t, newfs)
 	})
 
 	t.Run("ReadWriteAll", func(t *testing.T) {
@@ -176,6 +176,50 @@ func testReadNonExistentFile(t *testing.T, newfs fsBuilder) {
 	path := newtestpath()
 	_, err := fs.ReadAll(path)
 	assertError(t, err, "reading file[%s]", path)
+}
+
+func testConcurrentReadWrite(t *testing.T, newfs fsBuilder) {
+	fs := newfs(t)
+	concurrency := 50
+	waiter := sync.WaitGroup{}
+	waiter.Add(concurrency)
+
+	for i := 0; i < concurrency; i++ {
+		go func() {
+			defer waiter.Done()
+
+			path := newtestpath()
+			contents := []byte(path)
+
+			testRead := func() {
+				reader, err := fs.Open(path)
+				assertNoError(t, err)
+				defer reader.Close()
+				readContents, err := ioutil.ReadAll(reader)
+				assertNoError(t, err)
+				assertEqualBytes(t, contents, readContents)
+			}
+
+			testReadAll := func() {
+				readContents, err := fs.ReadAll(path)
+				assertNoError(t, err)
+				assertEqualBytes(t, contents, readContents)
+			}
+
+			writer, err := fs.Create(path)
+			assertNoError(t, err)
+			n, err := writer.Write(contents)
+			assertNoError(t, err)
+			if n != len(contents) {
+				t.Fatalf("expected to write[%i] wrote[%i]", len(contents), n)
+			}
+
+			testRead()
+			testReadAll()
+		}()
+	}
+
+	waiter.Wait()
 }
 
 func newtestpath() string {
