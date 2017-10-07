@@ -6,10 +6,18 @@ import (
 	"io"
 	"io/ioutil"
 	"strings"
+	"sync"
 )
 
 type MemFS struct {
-	fs map[string]*bytes.Buffer
+	fs     map[string]*bytes.Buffer
+	fslock sync.Mutex
+}
+
+func NewMemFS() *MemFS {
+	return &MemFS{
+		fs: map[string]*bytes.Buffer{},
+	}
 }
 
 func (m *MemFS) Open(path string) (io.ReadCloser, error) {
@@ -30,26 +38,38 @@ func (m *MemFS) ReadAll(path string) ([]byte, error) {
 
 func (m *MemFS) Create(path string) (io.WriteCloser, error) {
 	buf := &bytes.Buffer{}
-	m.fs[path] = buf
+	m.setcontents(path, buf)
 	return newWriterNopCloser(buf), nil
 }
 
 func (m *MemFS) WriteAll(path string, contents []byte) error {
 	buf := &bytes.Buffer{}
 	io.Copy(buf, bytes.NewReader(contents))
-	m.fs[path] = buf
+	m.setcontents(path, buf)
 	return nil
 }
 
 func (m *MemFS) Remove(path string) error {
-	if _, ok := m.fs[path]; !ok {
-		return m.removeDir(path)
+	if m.isFile(path) {
+		m.lock()
+		delete(m.fs, path)
+		m.unlock()
+		return nil
 	}
-	delete(m.fs, path)
-	return nil
+	return m.removeDir(path)
+}
+
+func (m *MemFS) isFile(path string) bool {
+	m.lock()
+	defer m.unlock()
+	_, ok := m.fs[path]
+	return ok
 }
 
 func (m *MemFS) removeDir(dir string) error {
+	m.lock()
+	defer m.unlock()
+
 	err := fmt.Errorf("removing non existent path[%s]", dir)
 	for storedFile, _ := range m.fs {
 		if strings.HasPrefix(storedFile, dir) {
@@ -57,16 +77,28 @@ func (m *MemFS) removeDir(dir string) error {
 			err = nil
 		}
 	}
+
 	return err
 }
 
-func NewMemFS() *MemFS {
-	return &MemFS{
-		fs: map[string]*bytes.Buffer{},
-	}
+func (m *MemFS) lock() {
+	m.fslock.Lock()
+}
+
+func (m *MemFS) unlock() {
+	m.fslock.Unlock()
+}
+
+func (m *MemFS) setcontents(path string, contents *bytes.Buffer) {
+	m.lock()
+	defer m.unlock()
+	m.fs[path] = contents
 }
 
 func (m *MemFS) getcontents(path string) (*bytes.Buffer, error) {
+	m.lock()
+	defer m.unlock()
+
 	contents, ok := m.fs[path]
 	if !ok {
 		return nil, fmt.Errorf("unable to find file[%s]", path)
