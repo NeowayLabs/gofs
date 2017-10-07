@@ -17,7 +17,7 @@ func (m *MemFS) Open(path string) (io.ReadCloser, error) {
 	if err != nil {
 		return nil, err
 	}
-	return ioutil.NopCloser(contents), nil
+	return ioutil.NopCloser(bytes.NewReader(contents.Bytes())), nil
 }
 
 func (m *MemFS) ReadAll(path string) ([]byte, error) {
