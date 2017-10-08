@@ -142,7 +142,7 @@ func testRemoveDir(t *testing.T, newfs fsBuilder) {
 	dir := newtestpath()
 	contents := []byte("echo")
 	file1 := dir + "/file1"
-	file2 := dir + "/file1"
+	file2 := dir + "/file2"
 
 	assertNoError(t, fs.WriteAll(file1, contents), "writing contents to path[%s]", file1)
 	assertNoError(t, fs.WriteAll(file2, contents), "writing contents to path[%s]", file2)
