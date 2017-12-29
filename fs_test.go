@@ -88,11 +88,12 @@ func testReadWrite(t *testing.T, newfs fsBuilder) {
 	writer, err := fs.Create(path)
 
 	assertNoError(t, err, "creating writer for file[%s]", path)
-	defer closeIO(t, writer)
+	// defer closeIO(t, writer)
 
 	expectedContents := []byte(path)
 	n, err := writer.Write(expectedContents)
 	assertNoError(t, err, "writing file[%s]", path)
+	closeIO(t, writer)
 
 	if n != len(expectedContents) {
 		t.Fatal("expected to write[%d], wrote just[%d]", n, len(expectedContents))
@@ -217,6 +218,7 @@ func testConcurrentReadWrite(t *testing.T, newfs fsBuilder) {
 			if n != len(contents) {
 				t.Fatalf("expected to write[%i] wrote[%i]", len(contents), n)
 			}
+			closeIO(t, writer)
 
 			testRead()
 			testReadAll()
