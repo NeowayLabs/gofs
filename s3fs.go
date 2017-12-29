@@ -3,8 +3,8 @@ package gofs
 import (
 	"bytes"
 	"io"
+	"log"
 	"os"
-	"strings"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/session"
@@ -18,7 +18,25 @@ type S3FS struct {
 	bucketName string
 }
 
+func (fs *S3FS) listAll(path string) (*s3.ListObjectsOutput, error) {
+	input := &s3.ListObjectsInput{
+		Bucket:  aws.String(fs.bucketName),
+		Prefix:  aws.String("gofs"),
+		MaxKeys: aws.Int64(1),
+	}
+
+	return fs.s3.ListObjects(input)
+	// if err != nil {
+	// 	log.Fatal(err)
+	// 	return nil, err
+	// }
+
+	// // log.Printf("FILES %s", result)
+	// return result, err
+}
+
 func (fs *S3FS) Open(path string) (io.ReadCloser, error) {
+	fs.listAll(path)
 	params := &s3.GetObjectInput{
 		Bucket: aws.String(fs.bucketName),
 		Key:    aws.String(path),
@@ -46,21 +64,24 @@ func (fs *S3FS) ReadAll(path string) ([]byte, error) {
 }
 
 func (fs *S3FS) Create(path string) (io.WriteCloser, error) {
-	_, writer := io.Pipe()
+	reader, writer := io.Pipe()
 
 	params := &s3manager.UploadInput{
 		Bucket:       aws.String(fs.bucketName),
 		Key:          aws.String(path),
 		ACL:          aws.String(s3.ObjectCannedACLBucketOwnerRead),
 		StorageClass: aws.String(s3.StorageClassStandardIa),
-		Body:         strings.NewReader("Hello!"),
-		// Body:         reader,
+		Body:         reader,
 	}
 
-	_, err := fs.uploader.Upload(params)
-	if err != nil {
-		return nil, err
-	}
+	go func() {
+		_, err := fs.uploader.Upload(params)
+		if err != nil {
+			log.Fatalf("Could not upload file: %s", err)
+		}
+
+		defer reader.Close()
+	}()
 
 	return writer, nil
 }
@@ -78,6 +99,8 @@ func (fs *S3FS) WriteAll(path string, contents []byte) error {
 }
 
 func (fs *S3FS) Remove(path string) error {
+	// TODO: NewDeleteListIterator to resolve dir remove
+	fs.listAll(path)
 	params := &s3.DeleteObjectInput{
 		Bucket: aws.String(fs.bucketName),
 		Key:    aws.String(path),
@@ -112,6 +135,7 @@ func getBucketName() string {
 
 func createS3Service() (*s3.S3, *s3manager.Uploader) {
 	sess := session.Must(session.NewSession())
+
 	// TODO verify defaul region
 	config := aws.NewConfig().WithRegion("us-west-2").WithLogLevel(aws.LogDebug)
 	service := s3.New(sess, config)
