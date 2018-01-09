@@ -2,6 +2,7 @@ package gofs
 
 import (
 	"bytes"
+	"fmt"
 	"io"
 	"log"
 	"os"
@@ -12,13 +13,13 @@ import (
 	"github.com/aws/aws-sdk-go/service/s3/s3manager"
 )
 
-type S3FS struct {
+type S3 struct {
 	s3         *s3.S3
 	uploader   *s3manager.Uploader
 	bucketName string
 }
 
-func (fs *S3FS) listAll(path string) (*s3.ListObjectsOutput, error) {
+func (fs S3) listAll(path string) (*s3.ListObjectsOutput, error) {
 	input := &s3.ListObjectsInput{
 		Bucket:  aws.String(fs.bucketName),
 		Prefix:  aws.String("gofs"),
@@ -26,17 +27,11 @@ func (fs *S3FS) listAll(path string) (*s3.ListObjectsOutput, error) {
 	}
 
 	return fs.s3.ListObjects(input)
-	// if err != nil {
-	// 	log.Fatal(err)
-	// 	return nil, err
-	// }
-
-	// // log.Printf("FILES %s", result)
-	// return result, err
 }
 
-func (fs *S3FS) Open(path string) (io.ReadCloser, error) {
+func (fs S3) Open(path string) (io.ReadCloser, error) {
 	fs.listAll(path)
+
 	params := &s3.GetObjectInput{
 		Bucket: aws.String(fs.bucketName),
 		Key:    aws.String(path),
@@ -50,7 +45,7 @@ func (fs *S3FS) Open(path string) (io.ReadCloser, error) {
 	return resp.Body, nil
 }
 
-func (fs *S3FS) ReadAll(path string) ([]byte, error) {
+func (fs S3) ReadAll(path string) ([]byte, error) {
 	r, err := fs.Open(path)
 	if err != nil {
 		return nil, err
@@ -63,7 +58,7 @@ func (fs *S3FS) ReadAll(path string) ([]byte, error) {
 	return buf.Bytes(), nil
 }
 
-func (fs *S3FS) Create(path string) (io.WriteCloser, error) {
+func (fs S3) Create(path string) (io.WriteCloser, error) {
 	reader, writer := io.Pipe()
 
 	params := &s3manager.UploadInput{
@@ -86,7 +81,7 @@ func (fs *S3FS) Create(path string) (io.WriteCloser, error) {
 	return writer, nil
 }
 
-func (fs *S3FS) WriteAll(path string, contents []byte) error {
+func (fs S3) WriteAll(path string, contents []byte) error {
 	w, err := fs.Create(path)
 	if err != nil {
 		return err
@@ -98,7 +93,7 @@ func (fs *S3FS) WriteAll(path string, contents []byte) error {
 	return err
 }
 
-func (fs *S3FS) Remove(path string) error {
+func (fs S3) Remove(path string) error {
 	// TODO: NewDeleteListIterator to resolve dir remove
 	fs.listAll(path)
 	params := &s3.DeleteObjectInput{
@@ -111,29 +106,32 @@ func (fs *S3FS) Remove(path string) error {
 	return err
 }
 
-// NewS3FS creates a new S3FS where all
+// NewS3 creates a new S3FS where all
 // files are opened and created relative to the
-func NewS3FS() *S3FS {
+func NewS3() *S3 {
 
-	bucketName := getBucketName()
-
-	service, uploader := createS3Service()
-	return &S3FS{
-		s3:         service,
-		uploader:   uploader,
-		bucketName: bucketName,
+	bucketName, err := getBucketName()
+	if err != nil {
+		log.Fatalf("Could not get bucket name: %s", err)
 	}
+
+	s3, err := createS3FS(bucketName)
+	if err != nil {
+		log.Fatalf("Could not create s3 file system: %s", err)
+	}
+
+	return s3
 }
 
-func getBucketName() string {
+func getBucketName() (string, error) {
 	bucketName := os.Getenv("AWS_BUCKET_NAME")
 	if bucketName == "" {
-		panic("Please enter your AWS_BUCKET_NAME environment variable!")
+		return "", fmt.Errorf("Please enter your AWS_BUCKET_NAME environment variable!")
 	}
-	return bucketName
+	return bucketName, nil
 }
 
-func createS3Service() (*s3.S3, *s3manager.Uploader) {
+func createS3FS(bucketName string) (*S3, error) {
 	sess := session.Must(session.NewSession())
 
 	// TODO verify defaul region
@@ -142,9 +140,14 @@ func createS3Service() (*s3.S3, *s3manager.Uploader) {
 
 	sess, err := session.NewSession(config)
 	if err != nil {
-		panic(err)
+		return nil, err
 	}
 
 	uploader := s3manager.NewUploader(sess)
-	return service, uploader
+
+	return &S3{
+		s3:         service,
+		uploader:   uploader,
+		bucketName: bucketName,
+	}, nil
 }
