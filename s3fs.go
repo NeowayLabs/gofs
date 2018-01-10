@@ -6,6 +6,7 @@ import (
 	"io"
 	"log"
 	"os"
+	"strings"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/session"
@@ -14,30 +15,37 @@ import (
 )
 
 type S3 struct {
-	s3         *s3.S3
+	s3Client   *s3.S3
 	uploader   *s3manager.Uploader
 	bucketName string
 }
 
-func (fs S3) listAll(path string) (*s3.ListObjectsOutput, error) {
-	input := &s3.ListObjectsInput{
-		Bucket:  aws.String(fs.bucketName),
-		Prefix:  aws.String("gofs"),
-		MaxKeys: aws.Int64(1),
+func (fs *S3) listObjects(path string) (*s3.ListObjectsV2Output, error) {
+	handledPath := path
+
+	if strings.HasPrefix(handledPath, "/") {
+		handledPath = strings.Replace(handledPath, "/", "", 1)
 	}
 
-	return fs.s3.ListObjects(input)
+	input := &s3.ListObjectsV2Input{
+		Bucket: aws.String(fs.bucketName),
+		Prefix: aws.String(handledPath),
+		// Prefix: aws.String("gofs"),
+		// MaxKeys: aws.Int64(100),
+	}
+
+	return fs.s3Client.ListObjectsV2(input)
 }
 
-func (fs S3) Open(path string) (io.ReadCloser, error) {
-	fs.listAll(path)
+func (fs *S3) Open(path string) (io.ReadCloser, error) {
+	fs.listObjects(path)
 
-	params := &s3.GetObjectInput{
+	input := &s3.GetObjectInput{
 		Bucket: aws.String(fs.bucketName),
 		Key:    aws.String(path),
 	}
 
-	resp, err := fs.s3.GetObject(params)
+	resp, err := fs.s3Client.GetObject(input)
 	if err != nil {
 		return nil, err
 	}
@@ -45,7 +53,7 @@ func (fs S3) Open(path string) (io.ReadCloser, error) {
 	return resp.Body, nil
 }
 
-func (fs S3) ReadAll(path string) ([]byte, error) {
+func (fs *S3) ReadAll(path string) ([]byte, error) {
 	r, err := fs.Open(path)
 	if err != nil {
 		return nil, err
@@ -58,10 +66,10 @@ func (fs S3) ReadAll(path string) ([]byte, error) {
 	return buf.Bytes(), nil
 }
 
-func (fs S3) Create(path string) (io.WriteCloser, error) {
+func (fs *S3) Create(path string) (io.WriteCloser, error) {
 	reader, writer := io.Pipe()
 
-	params := &s3manager.UploadInput{
+	input := &s3manager.UploadInput{
 		Bucket:       aws.String(fs.bucketName),
 		Key:          aws.String(path),
 		ACL:          aws.String(s3.ObjectCannedACLBucketOwnerRead),
@@ -70,18 +78,17 @@ func (fs S3) Create(path string) (io.WriteCloser, error) {
 	}
 
 	go func() {
-		_, err := fs.uploader.Upload(params)
+		_, err := fs.uploader.Upload(input)
 		if err != nil {
 			log.Fatalf("Could not upload file: %s", err)
 		}
-
 		defer reader.Close()
 	}()
 
 	return writer, nil
 }
 
-func (fs S3) WriteAll(path string, contents []byte) error {
+func (fs *S3) WriteAll(path string, contents []byte) error {
 	w, err := fs.Create(path)
 	if err != nil {
 		return err
@@ -93,21 +100,51 @@ func (fs S3) WriteAll(path string, contents []byte) error {
 	return err
 }
 
-func (fs S3) Remove(path string) error {
-	// TODO: NewDeleteListIterator to resolve dir remove
-	fs.listAll(path)
-	params := &s3.DeleteObjectInput{
-		Bucket: aws.String(fs.bucketName),
-		Key:    aws.String(path),
+func (fs *S3) Remove(path string) error {
+	result, err := fs.listObjects(path)
+	if err != nil {
+		return err
 	}
 
-	_, err := fs.s3.DeleteObject(params)
+	count := int(*result.KeyCount)
 
-	return err
+	if count == 0 {
+		return fmt.Errorf("file '%s' does not exists", path)
+	}
+
+	for count > 0 {
+		// Create Delete object with slots for the objects to delete
+		var items s3.Delete
+		var objs = make([]*s3.ObjectIdentifier, int(*result.KeyCount))
+
+		for i, o := range result.Contents {
+			// Add objects from command line to array
+			objs[i] = &s3.ObjectIdentifier{Key: aws.String(*o.Key)}
+		}
+
+		// Add list of objects to delete to Delete object
+		items.SetObjects(objs)
+
+		// Delete the items
+		_, err = fs.s3Client.DeleteObjects(
+			&s3.DeleteObjectsInput{Bucket: &fs.bucketName, Delete: &items},
+		)
+		if err != nil {
+			return err
+		}
+
+		result, err = fs.listObjects(path)
+		if err != nil {
+			return err
+		}
+		count = int(*result.KeyCount)
+	}
+
+	return nil
 }
 
-// NewS3 creates a new S3FS where all
-// files are opened and created relative to the
+// NewS3 creates a new S3 where all
+// files are opened and created relative to the bucket name
 func NewS3() *S3 {
 
 	bucketName, err := getBucketName()
@@ -146,7 +183,7 @@ func createS3FS(bucketName string) (*S3, error) {
 	uploader := s3manager.NewUploader(sess)
 
 	return &S3{
-		s3:         service,
+		s3Client:   service,
 		uploader:   uploader,
 		bucketName: bucketName,
 	}, nil
